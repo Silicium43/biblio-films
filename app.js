@@ -107,13 +107,18 @@ async function syncToGithub(newMovie) {
 }
 
 function populateCountries() {
-    const countries = [...new Set(movies.map(m => m.pays).filter(Boolean))].sort();
-    countryFilter.innerHTML = '<option value="all">🌐 Tous les pays</option>';
+    const allMovies = [...customMovies, ...(window.moviesData || [])];
+    const countryCounts = {};
+    allMovies.forEach(m => {
+        if (m.pays) countryCounts[m.pays] = (countryCounts[m.pays] || 0) + 1;
+    });
+    const countries = Object.keys(countryCounts).sort();
+    countryFilter.innerHTML = `<option value="all">🌐 Tous les pays (${allMovies.length})</option>`;
     countries.forEach(country => {
         const option = document.createElement('option');
         option.value = country;
         const emoji = countryToEmoji[country] || '🏳️';
-        option.textContent = `${emoji} ${country}`;
+        option.textContent = `${emoji} ${country} (${countryCounts[country]})`;
         countryFilter.appendChild(option);
     });
 }
@@ -121,12 +126,6 @@ function populateCountries() {
 function renderMovies() {
     movieGrid.innerHTML = '';
     let allMovies = [...customMovies, ...(window.moviesData || [])];
-    allMovies.sort((a, b) => {
-        const timeA = parseDate(a.date_notation).getTime();
-        const timeB = parseDate(b.date_notation).getTime();
-        if (timeA !== timeB) return timeB - timeA;
-        return parseDate(b.sortie) - parseDate(a.sortie);
-    });
 
     const filteredMovies = allMovies.filter(movie => {
         const matchesSearch = 
@@ -139,6 +138,23 @@ function renderMovies() {
         if (currentCountry !== 'all') matchesCountry = movie.pays === currentCountry;
         return matchesSearch && matchesFilter && matchesCountry;
     });
+
+    // Sort: top-rated uses note DESC then date_notation DESC; default uses date_notation DESC then sortie DESC
+    if (currentFilter === 'top-rated') {
+        filteredMovies.sort((a, b) => {
+            const noteA = parseInt(a.note) || 0;
+            const noteB = parseInt(b.note) || 0;
+            if (noteA !== noteB) return noteB - noteA;
+            return parseDate(b.date_notation).getTime() - parseDate(a.date_notation).getTime();
+        });
+    } else {
+        filteredMovies.sort((a, b) => {
+            const timeA = parseDate(a.date_notation).getTime();
+            const timeB = parseDate(b.date_notation).getTime();
+            if (timeA !== timeB) return timeB - timeA;
+            return parseDate(b.sortie) - parseDate(a.sortie);
+        });
+    }
 
     if (filteredMovies.length === 0) {
         movieGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-secondary);">AUCUN RÉSULTAT.</div>';
